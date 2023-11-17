@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Text predictor</title>
+    <style>
+      .container {
+        display: flex;
+        flex-direction: row;
+        justify-content: stretch;
+        align-items: start;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div>
+        <h2>Train the model</h2>
+        <textarea id="model-input" cols="30" rows="10"></textarea>
+        <br />
+        <button id="train-btn">Train</button>
+        <button id="generate-btn">Generate</button>
+
+      </div>
+      <div>
+        <h2>Test the model</h2>
+        <div id="test-view"></div>
+        <br />
+      </div>
+    </div>
+  </body>
+  <script>
+    const model = {
+      data: {},
+      train: function (inputText) {
+        // Remove HTML tags
+        var div = document.createElement("div");
+        div.innerHTML = inputText;
+        var text = div.textContent || div.innerText || "";
+        // Remove line feed characters
+        text = text.replace(/\s+/g, " ").trim();
+        // Remove brackets with their content
+        text = text.replace(/\[.*?\]/g, "");
+
+        const words = text.split(" ");
+        // Loop through the words and add the current word to allWords
+        for (let i = 0; i < words.length; i++) {
+          const word = words[i];
+          // Add current word
+          if (!this.data[word]) {
+            this.data[word] = {
+              count: 0,
+            };
+          }
+          this.data[word].count++;
+          // Add following words
+          for (let j = 1; j < 11; j++) {
+            const wordPlusJ = words[i + j];
+            if (wordPlusJ) {
+              if (!this.data[word][j]) {
+                this.data[word][j] = {};
+              }
+              if (!this.data[word][j][wordPlusJ]) {
+                this.data[word][j][wordPlusJ] = 0;
+              }
+              this.data[word][j][wordPlusJ]++;
+            }
+          }
+        }
+      },
+      // Picks a random word where the first letter is a capital
+      getFirstWord: function () {
+        const allWordsArray = Object.keys(this.data);
+        let randomWord = "a";
+        while (
+          randomWord !== undefined &&
+          randomWord[0] !== randomWord[0].toUpperCase() ||
+          randomWord[0] === randomWord[0].toLowerCase()
+        ) {
+          const randomIndex = Math.floor(Math.random() * allWordsArray.length);
+          randomWord = allWordsArray[randomIndex];
+        }
+        return randomWord;
+      },
+      getProbableWord: function (probabilities) {
+        // probabilities {
+        // word: string,
+        // probability: number
+        // }
+
+        // Sort the probabilities array by the probability
+        probabilities.sort((a, b) => {
+          return b.probability - a.probability;
+        });
+        // Pick 10 most probable words
+        probabilities = probabilities.slice(0, 10);
+        const totalProbability = probabilities.reduce((acc, curr) => {
+          return acc + curr.probability;
+        }, 0);
+        let randomNumber = Math.random() * totalProbability;
+        for (let i = 0; i < probabilities.length; i++) {
+          const word = probabilities[i];
+          if (randomNumber < word.probability) {
+            console.log("Selected random word:", word.word);
+            return word.word;
+          }
+          randomNumber -= word.probability;
+        }
+        // return the most probable word
+        return probabilities[0].word;
+      },
+      generate: function (numberOfWords) {
+        let sentence = "";
+        let lastWords = [];
+        // Loop numberOfWords times and generate a sentence
+        for (let i = 0; i < numberOfWords; i++) {
+          // Pick a random word from the allWords object that has a capital letter as the first letter
+          if (i === 0) {
+            sentence += this.getFirstWord();
+            lastWords = [sentence];
+          }
+          // Combine the next words from each of the objects into one array and add the frequency to the object
+          const allNextWords = {};
+          for (let j = 0; j < lastWords.length && j < 10; j++) {
+            const pastWordObject = this.data[lastWords[j]];
+            if (pastWordObject) {
+              const nextWords = pastWordObject[j + 1];
+              if (nextWords) {
+                const words = Object.keys(nextWords);
+                for (const word of words) {
+                  if (!allNextWords[word] && j === 0) {
+                    allNextWords[word] = 0;
+                  }
+                  if (allNextWords[word] !== undefined) {
+                    allNextWords[word] += nextWords[word] / (j + 1);
+                  }
+                }
+              }
+            }
+          }
+
+          const nextWordsArray = Object.keys(allNextWords);
+          if (nextWordsArray.length !== 0) {
+            const nextWordsWithProbability = nextWordsArray.map((nextWord) => {
+              return {
+                word: nextWord,
+                probability: allNextWords[nextWord] / this.data[nextWord].count,
+              };
+            });
+            console.log(
+              "Available next words with probability:",
+              nextWordsWithProbability
+              );
+              const randomNextWord = this.getProbableWord(nextWordsWithProbability);
+              sentence += " " + randomNextWord;
+              
+              // Add the word first in the lastWords array
+              lastWords = [randomNextWord, ...lastWords];
+            }
+            else {
+              // If no next words are available, pick a new first word
+              const newSeed = this.getFirstWord();
+              sentence += " " + newSeed;
+              lastWords = [newSeed, ...lastWords];
+            }
+        }
+        return sentence;
+      },
+    };
+
+    const trainBtn = document.getElementById("train-btn");
+    const modelInput = document.getElementById("model-input");
+    const testView = document.getElementById("test-view");
+    const generateBtn = document.getElementById("generate-btn");
+
+    trainBtn.addEventListener("click", () => {
+      const inputText = modelInput.value;
+      model.train(inputText);
+      console.log(model.data);
+    });
+
+    modelInput.addEventListener("keyup", (event) => {
+      if (event.key === "Enter") {
+        trainBtn.click();
+      }
+    });
+
+    generateBtn.addEventListener("click", () => {
+      const numberOfWords = 100;
+      const sentence = model.generate(numberOfWords);
+      testView.innerHTML = sentence;
+    });
+  </script>
+</html>
