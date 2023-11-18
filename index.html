@@ -5,30 +5,80 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Text predictor</title>
     <style>
-      .container {
-        display: flex;
-        flex-direction: row;
-        justify-content: stretch;
-        align-items: start;
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      body {
+        margin: 0;
+        padding: 12px;
+        height: 100%;
+        font-family: system, -apple-system, "Helvetica Neue", Helvetica,
+          "Segoe UI", sans-serif;
+        font-size: 13px;
+        line-height: 1.6;
+        background: #fafafa;
+      }
+
+      .b {
+        display: inline-block;
+        border-radius: 8px;
+        cursor: pointer;
+        padding: 2px 11px 2px 11px;
+        margin: 0 6px 12px 0;
+        text-align: center;
+        text-decoration: none;
+        white-space: nowrap;
+        color: #606060;
+        text-shadow: 0 1px 1px #fff;
+        background: linear-gradient(#f8f8f8 0%, #ededed 100%);
+        box-shadow: 0 1px 3px 0px #aaa;
+        border: 1px solid transparent;
+        border-top: 2px solid #fff;
+        border-bottom: 1px solid #e4e4e4;
+      }
+
+      .b:hover {
+        color: #555;
+        text-shadow: 0 1px 1px #fff;
+        background: linear-gradient(#fafafa 0%, #efefef 100%);
+        box-shadow: 0 1px 3px 0px #888;
+        border-top: 2px solid #fff;
+        border-bottom: 1px solid #e4e4e4;
+      }
+
+      .b:active {
+        color: #555;
+        text-shadow: 0 1px 1px #fff;
+        background: linear-gradient(#f5f5f5 0%, #eaeaea 100%);
+        box-shadow: 0 0 2px -1px #000;
+        border-top: 2px solid #fafafa;
+        border-bottom: 1px solid #dedede;
+      }
+
+      .b.disabled {
+        color: #aaa;
+        text-shadow: 0 1px 1px #fff;
+        background: linear-gradient(#f5f5f5 0%, #eaeaea 100%);
+        box-shadow: 0 0 2px -1px #000;
+        border-top: 2px solid #fafafa;
+        border-bottom: 1px solid #dedede;
       }
     </style>
   </head>
   <body>
-    <div class="container">
-      <div>
-        <h2>Train the model</h2>
-        <textarea id="model-input" cols="30" rows="10"></textarea>
-        <br />
-        <button id="train-btn">Train</button>
-        <button id="generate-btn">Generate</button>
-
-      </div>
-      <div>
-        <h2>Test the model</h2>
-        <div id="test-view"></div>
-        <br />
-      </div>
-    </div>
+    <button id="import-btn" class="b">Import Model</button>
+    <button id="export-btn" class="b">Export Model</button>
+    <button id="generate-btn" class="b">Generate Text</button>
+    <div id="test-view"></div>
+    <textarea id="model-input" cols="30" rows="10"></textarea><br />
+    <button id="train-btn" class="b">Train Model</button>
   </body>
   <script>
     const model = {
@@ -42,6 +92,8 @@
         text = text.replace(/\s+/g, " ").trim();
         // Remove brackets with their content
         text = text.replace(/\[.*?\]/g, "");
+        // Remove parentheses with their content
+        text = text.replace(/\(.*?\)/g, "");
 
         const words = text.split(" ");
         // Loop through the words and add the current word to allWords
@@ -74,8 +126,8 @@
         const allWordsArray = Object.keys(this.data);
         let randomWord = "a";
         while (
-          randomWord !== undefined &&
-          randomWord[0] !== randomWord[0].toUpperCase() ||
+          (randomWord !== undefined &&
+            randomWord[0] !== randomWord[0].toUpperCase()) ||
           randomWord[0] === randomWord[0].toLowerCase()
         ) {
           const randomIndex = Math.floor(Math.random() * allWordsArray.length);
@@ -93,8 +145,8 @@
         probabilities.sort((a, b) => {
           return b.probability - a.probability;
         });
-        // Pick 10 most probable words
-        probabilities = probabilities.slice(0, 10);
+        // Pick 2 most probable words
+        probabilities = probabilities.slice(0, 2);
         const totalProbability = probabilities.reduce((acc, curr) => {
           return acc + curr.probability;
         }, 0);
@@ -133,7 +185,7 @@
                     allNextWords[word] = 0;
                   }
                   if (allNextWords[word] !== undefined) {
-                    allNextWords[word] += nextWords[word] / (j + 1);
+                    allNextWords[word] += nextWords[word]; // / (j + 1);
                   }
                 }
               }
@@ -141,29 +193,30 @@
           }
 
           const nextWordsArray = Object.keys(allNextWords);
-          if (nextWordsArray.length !== 0) {
+          if (nextWordsArray !== undefined && nextWordsArray.length !== 0) {
             const nextWordsWithProbability = nextWordsArray.map((nextWord) => {
               return {
                 word: nextWord,
-                probability: allNextWords[nextWord] / this.data[nextWord].count,
+                probability: allNextWords[nextWord] / (this.data[nextWord]?.count ?? 1),
               };
             });
             console.log(
               "Available next words with probability:",
               nextWordsWithProbability
-              );
-              const randomNextWord = this.getProbableWord(nextWordsWithProbability);
-              sentence += " " + randomNextWord;
-              
-              // Add the word first in the lastWords array
-              lastWords = [randomNextWord, ...lastWords];
-            }
-            else {
-              // If no next words are available, pick a new first word
-              const newSeed = this.getFirstWord();
-              sentence += " " + newSeed;
-              lastWords = [newSeed, ...lastWords];
-            }
+            );
+            const randomNextWord = this.getProbableWord(
+              nextWordsWithProbability
+            );
+            sentence += " " + randomNextWord;
+
+            // Add the word first in the lastWords array
+            lastWords = [randomNextWord, ...lastWords];
+          } else {
+            // If no next words are available, pick a new first word
+            const newSeed = this.getFirstWord();
+            sentence += " " + newSeed;
+            lastWords = [newSeed, ...lastWords];
+          }
         }
         return sentence;
       },
@@ -173,6 +226,8 @@
     const modelInput = document.getElementById("model-input");
     const testView = document.getElementById("test-view");
     const generateBtn = document.getElementById("generate-btn");
+    const importBtn = document.getElementById("import-btn");
+    const exportBtn = document.getElementById("export-btn");
 
     trainBtn.addEventListener("click", () => {
       const inputText = modelInput.value;
@@ -180,16 +235,41 @@
       console.log(model.data);
     });
 
-    modelInput.addEventListener("keyup", (event) => {
-      if (event.key === "Enter") {
-        trainBtn.click();
-      }
-    });
-
     generateBtn.addEventListener("click", () => {
       const numberOfWords = 100;
       const sentence = model.generate(numberOfWords);
       testView.innerHTML = sentence;
     });
+
+    // Open a model from file
+    importBtn.addEventListener("click", () => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".json";
+      input.onchange = (event) => {
+        const file = event.target.files[0];
+        const reader = new FileReader();
+        reader.readAsText(file, "UTF-8");
+        reader.onload = (readerEvent) => {
+          const content = readerEvent.target.result;
+          model.data = JSON.parse(content);
+          console.log(model.data);
+        };
+      };
+      input.click();
+    });
+
+    // Download the model as a file
+    exportBtn.addEventListener("click", () => {
+      const output = JSON.stringify(model.data);
+      const blob = new Blob([output], { type: "text/plain" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "model.json";
+      a.click();
+    });
+
+    // TODO: Filtrera startord så att de inte slutar på punkt
   </script>
 </html>
