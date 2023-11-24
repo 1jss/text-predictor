@@ -94,6 +94,12 @@
         text = text.replace(/\[.*?\]/g, "");
         // Remove parentheses with their content
         text = text.replace(/\(.*?\)/g, "");
+        // Replace double spaces with single spaces
+        text = text.replace(/\s\s+/g, " ");
+        // Replace space followed by a dot with a dot
+        text = text.replace(/\s\./g, ".");
+        // Replace space followed by a comma with a comma
+        text = text.replace(/\s,/g, ",");
 
         const words = text.split(" ");
         // Loop through the words and add the current word to allWords
@@ -124,16 +130,34 @@
       // Picks a random word where the first letter is a capital
       getFirstWord: function () {
         const allWordsArray = Object.keys(this.data);
-        let randomWord = "a";
-        while (
-          (randomWord !== undefined &&
-            randomWord[0] !== randomWord[0].toUpperCase()) ||
-          randomWord[0] === randomWord[0].toLowerCase()
-        ) {
-          const randomIndex = Math.floor(Math.random() * allWordsArray.length);
-          randomWord = allWordsArray[randomIndex];
+        // Filter out words that don't start with a capital letter or ends with a dot
+        const filteredWords = allWordsArray.filter((word) => {
+          return (
+            word[0] === word[0].toUpperCase() && // First letter is capital
+            word[0] !== word[0].toLowerCase() && // First letter is not a number
+            word[word.length - 1] !== word[word.length - 1].toUpperCase() && // Last letter is not a capital
+            word[word.length - 1] !== "." && // Last letter is not a dot
+            word[word.length - 1] !== "," && // Last letter is not a comma
+            word[word.length - 1] !== "!" && // Last letter is not an exclamation mark
+            word[word.length - 1] !== "?" // Last letter is not a question mark
+          );
+        });
+        const totalFrequency = filteredWords.reduce((acc, curr) => {
+          return acc + this.data[curr].count;
+        }, 0);
+        // Pick a random word from the filtered words weighted by the frequency of the word
+        let randomNumber = Math.random() * totalFrequency;
+        let randomWord;
+        for (let i = 0; i < filteredWords.length; i++) {
+          const word = filteredWords[i];
+          if (randomNumber < this.data[word].count) {
+            randomWord = word;
+            break;
+          }
+          randomNumber -= this.data[word].count;
         }
-        return randomWord;
+
+        return randomWord ?? this.getFirstWord();
       },
       getProbableWord: function (probabilities) {
         // probabilities {
@@ -146,19 +170,19 @@
           return b.probability - a.probability;
         });
         // Pick 2 most probable words
-        probabilities = probabilities.slice(0, 2);
-        const totalProbability = probabilities.reduce((acc, curr) => {
-          return acc + curr.probability;
-        }, 0);
-        let randomNumber = Math.random() * totalProbability;
-        for (let i = 0; i < probabilities.length; i++) {
-          const word = probabilities[i];
-          if (randomNumber < word.probability) {
-            console.log("Selected random word:", word.word);
-            return word.word;
-          }
-          randomNumber -= word.probability;
-        }
+        // probabilities = probabilities.slice(0, 2);
+        // const totalProbability = probabilities.reduce((acc, curr) => {
+        //   return acc + curr.probability;
+        // }, 0);
+        // let randomNumber = Math.random() * totalProbability;
+        // for (let i = 0; i < probabilities.length; i++) {
+        //   const word = probabilities[i];
+        //   if (randomNumber < word.probability) {
+        //     console.log("Selected random word:", word.word);
+        //     return word.word;
+        //   }
+        //   randomNumber -= word.probability;
+        // }
         // return the most probable word
         return probabilities[0].word;
       },
@@ -181,11 +205,13 @@
               if (nextWords) {
                 const words = Object.keys(nextWords);
                 for (const word of words) {
+                  // Add all available next words from the last word
                   if (!allNextWords[word] && j === 0) {
                     allNextWords[word] = 0;
                   }
+                  // Add the frequency from the past words
                   if (allNextWords[word] !== undefined) {
-                    allNextWords[word] += nextWords[word]; // / (j + 1);
+                    allNextWords[word] += nextWords[word] * (j + 1);
                   }
                 }
               }
@@ -197,18 +223,15 @@
             const nextWordsWithProbability = nextWordsArray.map((nextWord) => {
               return {
                 word: nextWord,
-                probability: allNextWords[nextWord] / (this.data[nextWord]?.count ?? 1),
+                probability:
+                  allNextWords[nextWord] / (this.data[nextWord]?.count ?? 1),
               };
             });
-            console.log(
-              "Available next words with probability:",
-              nextWordsWithProbability
-            );
             const randomNextWord = this.getProbableWord(
               nextWordsWithProbability
             );
+            // Add the word to the sentence
             sentence += " " + randomNextWord;
-
             // Add the word first in the lastWords array
             lastWords = [randomNextWord, ...lastWords];
           } else {
